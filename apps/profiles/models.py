@@ -57,5 +57,4 @@ def create_or_save_user_profile(sender, instance, created, **kwargs):
             defaults={"name": "Cebu City"},
         )
         Profile.objects.create(user=instance, district=default_district)
-    elif hasattr(instance, "profile"):
-        instance.profile.save()
+    

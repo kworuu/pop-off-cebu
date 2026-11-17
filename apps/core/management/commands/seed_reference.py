@@ -39,9 +39,9 @@ PERMITS = [
     ("TRAFFIC_ROAD_CLOSURE", "Traffic Management / Road Closure Permit",
      "Cebu City Transportation Office (CCTO)", "EVENT", "ROAD_CLOSURE"),
     ("HEALTH_CARD", "Health Card",
-     "City Health Department", "VENDOR", "VENDOR_FOOD"),
+     "City Health Department", "VENDOR", "ALWAYS"),
     ("SANITARY_TRAINING", "Sanitary Training Certificate",
-     "City Health Department", "VENDOR", "VENDOR_FOOD"),
+     "City Health Department", "VENDOR", "ALWAYS"),
 ]
 
 
@@ -50,7 +50,7 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         for name in DISTRICTS:
-            District.objects.update_or_create(slug=slugify(name), defaults={"name": name})
+            District.objects.get_or_create(name=name, defaults={"slug": slugify(name)})
         for name in CATEGORIES:
             Category.objects.update_or_create(slug=slugify(name), defaults={"name": name})
         for code, name, office, scope, rule in PERMITS:
