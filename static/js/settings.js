@@ -45,4 +45,8 @@ document.addEventListener("DOMContentLoaded", () => {
             previewDistrict.textContent = districtSelect.options[districtSelect.selectedIndex].text;
         });
     }
+
+    const initial = document.querySelector("[data-active-tab]")?.dataset.activeTab;
+    const start = [...tabButtons].find((b) => b.dataset.tab === initial);
+    if (start) start.click();
 });
