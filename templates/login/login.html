@@ -19,9 +19,10 @@
 
         <form method="post">
             {% csrf_token %}
+            {{ form.non_field_errors }}
             <div style="margin-bottom: 14px;">
                 <label for="id_username">Username</label>
-                <input type="text" name="username" id="id_username" class="form-input" required autofocus>
+                <input type="text" name="username" id="id_username" class="form-input" value="{{ form.username.value|default:'' }}" required autofocus>
             </div>
 
             <div style="margin-bottom: 14px;">
