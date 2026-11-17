@@ -1,21 +1,25 @@
-from django.shortcuts import render
 from django.contrib.auth.decorators import login_required
+from django.shortcuts import render
+
+from apps.events.constants import RSVP_SAVED
+from apps.events.models import Event
+
 
 @login_required
 def profile_view(request):
-    profile = request.user.profile
-    role = request.user.role
+    user = request.user
 
-    # Dynamic metrics per Pop-off Cebu user type
+    # Each role gets a label and a function that counts its real records.
+    # Only the current user's role is evaluated, so we run one query.
     stats_map = {
-        "ORGANIZER": {"label": "Events Hosted", "value": 3},
-        "VENDOR": {"label": "Active Stalls", "value": 8},
-        "PERFORMER": {"label": "Gigs Booked", "value": 12},
-        "ATTENDEE": {"label": "Bookmarked Bazaars", "value": 5},
+        "ORGANIZER": ("Events Hosted", lambda: Event.objects.filter(organizer=user).count()),
+        "VENDOR": ("Booth Applications", lambda: user.booth_applications.count()),
+        "PERFORMER": ("Gig Applications", lambda: user.gig_applications.count()),
+        "ATTENDEE": ("Saved Events", lambda: user.rsvps.filter(status=RSVP_SAVED).count()),
     }
-    stat = stats_map.get(role, {"label": "Platform Activities", "value": 0})
+    label, count = stats_map.get(user.role, ("Platform Activities", lambda: 0))
 
     return render(request, "profiles/profile.html", {
-        "profile": profile,
-        "stat": stat,
+        "profile": user.profile,
+        "stat": {"label": label, "value": count()},
     })
