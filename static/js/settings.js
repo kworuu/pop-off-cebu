@@ -19,6 +19,11 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     });
 
+    // Open the tab the server asked for (e.g. Security after a password error)
+    const initial = document.querySelector("[data-active-tab]")?.dataset.activeTab;
+    const start = [...tabButtons].find((b) => b.dataset.tab === initial);
+    if (start) start.click();
+
     // 2. Interactive Live Preview
     const stageInput = document.getElementById("id_business_or_stage_name");
     const bioInput = document.getElementById("id_bio");
@@ -45,8 +50,4 @@ document.addEventListener("DOMContentLoaded", () => {
             previewDistrict.textContent = districtSelect.options[districtSelect.selectedIndex].text;
         });
     }
-
-    const initial = document.querySelector("[data-active-tab]")?.dataset.activeTab;
-    const start = [...tabButtons].find((b) => b.dataset.tab === initial);
-    if (start) start.click();
 });
