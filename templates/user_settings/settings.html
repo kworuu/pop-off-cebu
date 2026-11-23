@@ -40,7 +40,7 @@
         <div class="window-body">
             <!-- Tab 1: Account -->
             <div class="settings-tab-pane" id="tab-account">
-                <form method="post" enctype="multipart/form-data">
+                <form method="post" enctype="multipart/form-data" novalidate>
                     {% csrf_token %}
                     <input type="hidden" name="action" value="profile">
                     {{ profile_form.as_p }}
