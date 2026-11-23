@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Events Needing Vendors | Pop-off Cebu{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{% static 'css/events/events.css' %}">{% endblock %}
+
+{% block content %}
+<div class="page-head"><h1 class="page-title">Events needing vendors</h1></div>
+<div class="window-card">
+    <div class="window-header"><span>NEEDS_VENDORS.EXE</span>{% include "partials/_window_controls.html" %}</div>
+    <div class="window-body scroll-x">
+        {% if events %}
+        <table class="table">
+            <thead><tr><th>Event</th><th>When</th><th>Venue</th><th>District</th></tr></thead>
+            <tbody>
+            {% for e in events %}
+                <tr>
+                    <td><a href="{% url 'events:detail' e.slug %}">{{ e.title }}</a></td>
+                    <td>{{ e.start_at|date:"M j, Y g:i A" }}</td>
+                    <td>{{ e.venue.name }}</td>
+                    <td>{{ e.venue.district.name }}</td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+            <p class="muted">Every booth tier on your events has received applications, or you haven't created tiers yet.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

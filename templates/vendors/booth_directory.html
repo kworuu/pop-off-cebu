@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Booth Directory | Pop-off Cebu{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{% static 'css/events/events.css' %}">{% endblock %}
+
+{% block content %}
+<div class="page-head"><h1 class="page-title">Open booths in Metro Cebu</h1></div>
+<div class="window-card">
+    <div class="window-header"><span>BOOTH_DIRECTORY.EXE</span>{% include "partials/_window_controls.html" %}</div>
+    <div class="window-body scroll-x">
+        {% if tiers %}
+        <table class="table">
+            <thead><tr><th>Event</th><th>Date</th><th>Venue</th><th>District</th><th>Tier</th><th>Type</th><th>Fee</th><th>Slots</th></tr></thead>
+            <tbody>
+            {% for t in tiers %}
+                <tr>
+                    <td><a href="{% url 'events:detail' t.event.slug %}">{{ t.event.title }}</a></td>
+                    <td>{{ t.event.start_at|date:"M j, Y" }}</td>
+                    <td>{{ t.event.venue.name }}</td>
+                    <td>{{ t.event.venue.district.name }}</td>
+                    <td>{{ t.name }}</td>
+                    <td>{{ t.get_booth_category_display }}</td>
+                    <td>PHP {{ t.fee }}</td>
+                    <td>{{ t.slots_total }}</td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+            <p class="muted">No booths are open right now.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

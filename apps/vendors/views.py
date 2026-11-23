@@ -6,7 +6,7 @@ from apps.events.models import Event
 from apps.events.views import organizer_required
 from .forms import BoothTierForm
 from .models import BoothTier
-
+from .selectors import events_needing_vendors, open_booth_tiers
 
 @organizer_required
 def tier_create(request, slug):
@@ -44,3 +44,12 @@ def tier_delete(request, pk):
         tier.delete()
         messages.success(request, "Booth tier deleted.")
     return redirect("events:detail", slug=slug)
+
+def booth_directory(request):
+    return render(request, "vendors/booth_directory.html", {"tiers": open_booth_tiers()})
+
+
+@organizer_required
+def needs_vendors(request):
+    return render(request, "vendors/needs_vendors.html",
+                  {"events": events_needing_vendors(request.user)})
