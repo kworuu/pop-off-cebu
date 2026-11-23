@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}{% if tier %}Edit tier{% else %}Add booth tier{% endif %} | Pop-off Cebu{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{% static 'css/events/events.css' %}">{% endblock %}
+
+{% block content %}
+<div class="window-card form-window wide">
+    <div class="window-header"><span>{% if tier %}EDIT_TIER.EXE{% else %}NEW_TIER.EXE{% endif %}</span>{% include "partials/_window_controls.html" %}</div>
+    <div class="window-body">
+        <h2>{% if tier %}Edit {{ tier.name }}{% else %}Add a booth tier{% endif %}</h2>
+        <p class="form-subtitle">{{ event.title }}</p>
+        <form method="post" class="event-form" novalidate>
+            {% csrf_token %}
+            {% if form.non_field_errors %}<div class="notice">{{ form.non_field_errors }}</div>{% endif %}
+            <fieldset>
+                <legend>Tier</legend>
+                {% include "events/_field.html" with field=form.name %}
+                {% include "events/_field.html" with field=form.booth_category %}
+                {% include "events/_field.html" with field=form.slots_total %}
+                {% include "events/_field.html" with field=form.fee %}
+            </fieldset>
+            <fieldset>
+                <legend>Space and power</legend>
+                {% include "events/_field.html" with field=form.max_width_m %}
+                {% include "events/_field.html" with field=form.max_depth_m %}
+                {% include "events/_field.html" with field=form.power_watts %}
+            </fieldset>
+            <fieldset>
+                <legend>Rules</legend>
+                {% include "events/_field.html" with field=form.guidelines %}
+                {% include "events/_field.html" with field=form.required_permits %}
+            </fieldset>
+            <div class="form-actions">
+                <button type="submit" class="button primary-green">Save tier</button>
+                <a href="{% url 'events:detail' event.slug %}" class="button secondary">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

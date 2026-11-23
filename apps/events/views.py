@@ -11,7 +11,9 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.utils.text import slugify
 from django.views.decorators.http import require_POST
+from django.db.models import F
 
+from apps.vendors.models import BoothTier
 from apps.permits.models import EventPermit
 from apps.permits.services import generate_event_permits
 
@@ -137,6 +139,10 @@ def event_detail(request, slug):
         "is_past": event.end_at < now,
         "is_owner": is_owner,
         "rsvp_choices": RSVP_CHOICES,
+        "booth_tiers": BoothTier.objects.filter(event=event)
+            .annotate(approved=Count("applications", filter=Q(applications__status="APPROVED")))
+            .annotate(remaining=F("slots_total") - F("approved"))
+            .prefetch_related("required_permits"),
     }
     if is_owner:
         context["permits"] = (
