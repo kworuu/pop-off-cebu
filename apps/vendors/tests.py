@@ -1,8 +1,10 @@
 from django.contrib.auth import get_user_model
 from django.urls import reverse
+from django.test import SimpleTestCase
 
 from apps.events.tests import EventTestBase, make_event
 from .models import BoothApplication, BoothTier
+from .forms import BoothApplicationForm
 from .selectors import events_needing_vendors, open_booth_tiers
 
 User = get_user_model()
@@ -117,3 +119,22 @@ class NavTests(EventTestBase):
         self.assertNotContains(self.client.get(reverse("home:home")), link)
         self.client.force_login(self.organizer)
         self.assertContains(self.client.get(reverse("home:home")), link)
+
+class BoothApplicationFormTests(SimpleTestCase):
+    def test_valid_description(self):
+        form = BoothApplicationForm({"product_description": "Hand-poured soy candles"})
+        self.assertTrue(form.is_valid())
+
+    def test_short_description_is_rejected(self):
+        form = BoothApplicationForm({"product_description": "too short"})
+        self.assertFalse(form.is_valid())
+        self.assertIn("at least 10 characters", form.errors["product_description"][0])
+
+    def test_blank_description_is_rejected(self):
+        form = BoothApplicationForm({"product_description": "          "})
+        self.assertFalse(form.is_valid())
+
+    def test_description_is_stripped(self):
+        form = BoothApplicationForm({"product_description": "  Hand-poured soy candles  "})
+        self.assertTrue(form.is_valid())
+        self.assertEqual(form.cleaned_data["product_description"], "Hand-poured soy candles")
