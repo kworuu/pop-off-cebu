@@ -11,6 +11,7 @@ urlpatterns = [
     path("profiles/", include("apps.profiles.urls")),
     path("settings/", include("apps.user_settings.urls")),
     path("events/", include("apps.events.urls")),
+    path("vendors/", include("apps.vendors.urls")),
     path("", include("apps.home.urls")),
 ]
 

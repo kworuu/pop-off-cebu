@@ -53,6 +53,26 @@
         </div>
 
         <div class="window-card">
+            <div class="window-header"><span>BOOTHS</span>{% include "partials/_window_controls.html" %}</div>
+            <div class="window-body">
+                {% for t in booth_tiers %}
+                    <div class="announcement">
+                        <strong>{{ t.name }}</strong>
+                        <span class="help">{{ t.get_booth_category_display }} · {{ t.max_width_m }}×{{ t.max_depth_m }} m · {% if t.power_watts %}{{ t.power_watts }} W{% else %}no power{% endif %} · PHP {{ t.fee }}</span>
+                        <span class="help">{{ t.remaining }} of {{ t.slots_total }} slots left</span>
+                        {% if is_owner %}
+                            <a href="{% url 'vendors:tier_edit' t.pk %}">Edit</a>
+                            <form method="post" action="{% url 'vendors:tier_delete' t.pk %}" class="nav-logout-form">{% csrf_token %}<button type="submit" class="button secondary button-sm">Delete</button></form>
+                        {% endif %}
+                    </div>
+                {% empty %}
+                    <p class="muted">No booths are open for this event yet.</p>
+                {% endfor %}
+                {% if is_owner %}<a href="{% url 'vendors:tier_create' event.slug %}" class="button">Add booth tier</a>{% endif %}
+            </div>
+        </div>
+
+        <div class="window-card">
             <div class="window-header"><span>ANNOUNCEMENTS</span>{% include "partials/_window_controls.html" %}</div>
             <div class="window-body">
                 {% for a in announcements %}

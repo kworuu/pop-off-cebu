@@ -18,8 +18,10 @@
             </a>
             <div class="nav-links">
                 <a href="{% url 'events:list' %}">Discovery</a>
+                <a href="{% url 'vendors:booth_directory' %}">Booths</a>
                 {% if user.is_authenticated %}
                     {% if user.role == 'ORGANIZER' %}<a href="{% url 'events:mine' %}">My events</a>{% endif %}
+                    <a href="{% url 'vendors:needs_vendors' %}">Needs vendors</a>
                     <a href="{% url 'profiles:profile' %}">Profile</a>
                     <a href="{% url 'user_settings:settings' %}">Settings</a>
                     <span class="role-badge {{ user.role|lower }}">{{ user.get_role_display }}</span>

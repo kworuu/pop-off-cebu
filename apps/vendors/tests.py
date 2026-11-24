@@ -3,6 +3,7 @@ from django.urls import reverse
 
 from apps.events.tests import EventTestBase, make_event
 from .models import BoothApplication, BoothTier
+from .selectors import events_needing_vendors, open_booth_tiers
 
 User = get_user_model()
 
@@ -76,3 +77,22 @@ class TierManagementTests(EventTestBase):
                                         product_description="Candles", status="APPROVED")
         response = self.client.get(reverse("events:detail", args=[self.event.slug]))
         self.assertEqual(response.context["booth_tiers"][0].remaining, 1)
+
+from .selectors import events_needing_vendors, open_booth_tiers
+
+
+class QueryFeatureTests(EventTestBase):
+    def test_booth_directory_joins_event_and_district(self):
+        event = make_event(self.organizer, self.venue)
+        make_tier(event)
+        with self.assertNumQueries(1):
+            rows = list(open_booth_tiers())
+            self.assertEqual(rows[0].event.venue.district.name, "Cebu City")
+
+    def test_needs_vendors_excludes_tiers_with_applications(self):
+        event = make_event(self.organizer, self.venue)
+        tier = make_tier(event)
+        self.assertEqual(list(events_needing_vendors(self.organizer)), [event])
+        vendor = User.objects.create_user("ven", password="pw-12345-test", role="VENDOR")
+        BoothApplication.objects.create(booth_tier=tier, vendor=vendor, product_description="x")
+        self.assertEqual(list(events_needing_vendors(self.organizer)), [])
