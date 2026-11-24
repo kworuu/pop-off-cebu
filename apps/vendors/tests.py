@@ -96,3 +96,24 @@ class QueryFeatureTests(EventTestBase):
         vendor = User.objects.create_user("ven", password="pw-12345-test", role="VENDOR")
         BoothApplication.objects.create(booth_tier=tier, vendor=vendor, product_description="x")
         self.assertEqual(list(events_needing_vendors(self.organizer)), [])
+
+class CancelledEventGuardTests(EventTestBase):
+    def test_cannot_add_tier_to_cancelled_event(self):
+        event = make_event(self.organizer, self.venue, status="CANCELLED")
+        self.client.force_login(self.organizer)
+        url = reverse("vendors:tier_create", args=[event.slug])
+        data = {"name": "Late", "booth_category": "DRY_GOODS", "max_width_m": "2",
+                "max_depth_m": "2", "power_watts": 0, "fee": "100", "slots_total": 1,
+                "guidelines": ""}
+        response = self.client.post(url, data)
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(BoothTier.objects.count(), 0)
+
+
+class NavTests(EventTestBase):
+    def test_needs_vendors_link_only_for_organizers(self):
+        link = reverse("vendors:needs_vendors")
+        self.client.force_login(self.attendee)
+        self.assertNotContains(self.client.get(reverse("home:home")), link)
+        self.client.force_login(self.organizer)
+        self.assertContains(self.client.get(reverse("home:home")), link)

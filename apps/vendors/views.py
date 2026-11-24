@@ -2,6 +2,7 @@ from django.contrib import messages
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
+from apps.events.constants import EVENT_CANCELLED
 from apps.events.models import Event
 from apps.events.views import organizer_required
 from .forms import BoothTierForm
@@ -11,6 +12,9 @@ from .selectors import events_needing_vendors, open_booth_tiers
 @organizer_required
 def tier_create(request, slug):
     event = get_object_or_404(Event, slug=slug, organizer=request.user)
+    if event.status == EVENT_CANCELLED:
+        messages.error(request, "This event is cancelled, so you can't add booth tiers to it.")
+        return redirect("events:detail", slug=slug)
     form = BoothTierForm(request.POST or None)
     if request.method == "POST" and form.is_valid():
         tier = form.save(commit=False)
@@ -20,7 +24,6 @@ def tier_create(request, slug):
         messages.success(request, "Booth tier added.")
         return redirect("events:detail", slug=slug)
     return render(request, "vendors/tier_form.html", {"form": form, "event": event, "tier": None})
-
 
 @organizer_required
 def tier_edit(request, pk):
