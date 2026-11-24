@@ -1,7 +1,9 @@
 from django.contrib.auth import get_user_model
 from django.urls import reverse
 from django.test import SimpleTestCase
+from django.utils import timezone
 
+from datetime import timedelta
 from apps.events.tests import EventTestBase, make_event
 from .models import BoothApplication, BoothTier
 from .forms import BoothApplicationForm
@@ -138,3 +140,134 @@ class BoothApplicationFormTests(SimpleTestCase):
         form = BoothApplicationForm({"product_description": "  Hand-poured soy candles  "})
         self.assertTrue(form.is_valid())
         self.assertEqual(form.cleaned_data["product_description"], "Hand-poured soy candles")
+
+class ApplicationTestBase(EventTestBase):
+    def setUp(self):
+        self.event = make_event(self.organizer, self.venue)
+        self.tier = make_tier(self.event, slots_total=1)
+        self.vendor = User.objects.create_user("ven", password="pw-12345-test", role="VENDOR")
+        self.vendor.profile.business_or_stage_name = "Kiko Candles"
+        self.vendor.profile.save()
+        self.apply_url = reverse("vendors:apply", args=[self.tier.pk])
+        self.list_url = reverse("vendors:my_applications")
+
+    def apply(self, description="Hand-poured soy candles"):
+        return self.client.post(self.apply_url, {"product_description": description})
+
+
+class ApplyTests(ApplicationTestBase):
+    def test_anonymous_is_redirected_to_login(self):
+        response = self.apply()
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("/login/", response.url)
+        self.assertEqual(BoothApplication.objects.count(), 0)
+
+    def test_attendee_and_organizer_cannot_apply(self):
+        for user in (self.attendee, self.organizer):
+            self.client.force_login(user)
+            self.assertEqual(self.apply().status_code, 302)
+        self.assertEqual(BoothApplication.objects.count(), 0)
+
+    def test_vendor_can_apply(self):
+        self.client.force_login(self.vendor)
+        response = self.apply()
+        self.assertRedirects(response, self.list_url, fetch_redirect_response=False)
+        application = BoothApplication.objects.get()
+        self.assertEqual(application.vendor, self.vendor)
+        self.assertEqual(application.booth_tier, self.tier)
+        self.assertEqual(application.status, "PENDING")
+
+    def test_duplicate_application_is_rejected(self):
+        self.client.force_login(self.vendor)
+        self.apply()
+        response = self.apply("A different description here")
+        self.assertRedirects(response, self.list_url, fetch_redirect_response=False)
+        self.assertEqual(BoothApplication.objects.count(), 1)
+        self.assertEqual(BoothApplication.objects.get().product_description,
+                         "Hand-poured soy candles")
+
+    def test_applying_beyond_capacity_is_allowed(self):
+        other = User.objects.create_user("ven2", password="pw-12345-test", role="VENDOR")
+        BoothApplication.objects.create(booth_tier=self.tier, vendor=other,
+                                        product_description="Taken slot", status="APPROVED")
+        self.client.force_login(self.vendor)
+        self.apply()
+        self.assertEqual(BoothApplication.objects.filter(booth_tier=self.tier).count(), 2)
+
+    def test_unpublished_event_returns_404(self):
+        draft = make_event(self.organizer, self.venue, title="Draft", slug="draft", status="DRAFT")
+        tier = make_tier(draft)
+        self.client.force_login(self.vendor)
+        response = self.client.post(reverse("vendors:apply", args=[tier.pk]),
+                                    {"product_description": "Hand-poured soy candles"})
+        self.assertEqual(response.status_code, 404)
+
+    def test_ended_event_is_refused(self):
+        past = timezone.now() - timedelta(days=2)
+        old = make_event(self.organizer, self.venue, title="Old", slug="old",
+                         start_at=past, end_at=past + timedelta(hours=3))
+        tier = make_tier(old)
+        self.client.force_login(self.vendor)
+        response = self.client.post(reverse("vendors:apply", args=[tier.pk]),
+                                    {"product_description": "Hand-poured soy candles"})
+        self.assertRedirects(response, reverse("events:detail", args=[old.slug]),
+                             fetch_redirect_response=False)
+        self.assertEqual(BoothApplication.objects.count(), 0)
+
+    def test_my_applications_redirects_non_vendors(self):
+        self.client.force_login(self.attendee)
+        self.assertEqual(self.client.get(self.list_url).status_code, 302)
+
+
+class WithdrawTests(ApplicationTestBase):
+    def make_application(self, **overrides):
+        fields = dict(booth_tier=self.tier, vendor=self.vendor,
+                      product_description="Hand-poured soy candles")
+        fields.update(overrides)
+        return BoothApplication.objects.create(**fields)
+
+    def test_withdraw_marks_withdrawn(self):
+        application = self.make_application()
+        self.client.force_login(self.vendor)
+        self.client.post(reverse("vendors:withdraw", args=[application.pk]))
+        application.refresh_from_db()
+        self.assertEqual(application.status, "WITHDRAWN")
+
+    def test_withdraw_requires_post(self):
+        application = self.make_application()
+        self.client.force_login(self.vendor)
+        response = self.client.get(reverse("vendors:withdraw", args=[application.pk]))
+        self.assertEqual(response.status_code, 405)
+
+    def test_cannot_withdraw_someone_elses_application(self):
+        application = self.make_application()
+        other = User.objects.create_user("ven2", password="pw-12345-test", role="VENDOR")
+        self.client.force_login(other)
+        response = self.client.post(reverse("vendors:withdraw", args=[application.pk]))
+        self.assertEqual(response.status_code, 404)
+        application.refresh_from_db()
+        self.assertEqual(application.status, "PENDING")
+
+    def test_rejected_application_cannot_be_withdrawn(self):
+        application = self.make_application(status="REJECTED")
+        self.client.force_login(self.vendor)
+        self.client.post(reverse("vendors:withdraw", args=[application.pk]))
+        application.refresh_from_db()
+        self.assertEqual(application.status, "REJECTED")
+
+    def test_withdrawn_application_is_reopened_not_duplicated(self):
+        application = self.make_application(status="WITHDRAWN", reviewed_at=timezone.now())
+        self.client.force_login(self.vendor)
+        self.apply("Updated candle and soap range")
+        self.assertEqual(BoothApplication.objects.count(), 1)
+        application.refresh_from_db()
+        self.assertEqual(application.status, "PENDING")
+        self.assertIsNone(application.reviewed_at)
+        self.assertEqual(application.product_description, "Updated candle and soap range")
+
+    def test_withdrawing_approved_application_frees_the_slot(self):
+        application = self.make_application(status="APPROVED")
+        self.client.force_login(self.vendor)
+        self.client.post(reverse("vendors:withdraw", args=[application.pk]))
+        response = self.client.get(reverse("events:detail", args=[self.event.slug]))
+        self.assertEqual(response.context["booth_tiers"][0].remaining, 1)
