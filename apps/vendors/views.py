@@ -4,7 +4,7 @@ from django.views.decorators.http import require_POST
 
 from apps.events.constants import EVENT_CANCELLED
 from apps.events.models import Event
-from apps.events.views import organizer_required
+from apps.core.decorators import organizer_required
 from .forms import BoothTierForm
 from .models import BoothTier
 from .selectors import events_needing_vendors, open_booth_tiers
