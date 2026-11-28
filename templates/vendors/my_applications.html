@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}My applications | Pop-off Cebu{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{% static 'css/events/events.css' %}">{% endblock %}
+
+{% block content %}
+<div class="page-head">
+    <h1 class="page-title">My applications</h1>
+    <a href="{% url 'vendors:booth_directory' %}" class="button primary-green">Browse open booths</a>
+</div>
+
+{% if applications %}
+<div class="window-card">
+    <div class="window-header"><span>VENDOR_APPLICATIONS.EXE</span>{% include "partials/_window_controls.html" %}</div>
+    <div class="window-body scroll-x">
+        <table class="table">
+            <thead>
+                <tr><th>Event</th><th>Tier</th><th>Fee</th><th>Applied</th><th>Status</th><th>Organizer notes</th><th></th></tr>
+            </thead>
+            <tbody>
+                {% for a in applications %}
+                <tr>
+                    <td>
+                        <a href="{% url 'events:detail' a.booth_tier.event.slug %}">{{ a.booth_tier.event.title }}</a><br>
+                        <span class="help">{{ a.booth_tier.event.start_at|date:"M j, Y" }} / {{ a.booth_tier.event.venue.district.name }}</span>
+                    </td>
+                    <td>{{ a.booth_tier.name }}</td>
+                    <td>PHP {{ a.booth_tier.fee }}</td>
+                    <td>{{ a.applied_at|date:"M j, Y g:i A" }}</td>
+                    <td><span class="status-badge status-{{ a.status|lower }}">{{ a.get_status_display }}</span></td>
+                    <td>{% if a.organizer_notes %}{{ a.organizer_notes }}{% else %}<span class="muted">None</span>{% endif %}</td>
+                    <td>
+                        {% if a.status in active_statuses %}
+                            <form method="post" action="{% url 'vendors:withdraw' a.pk %}" class="nav-logout-form">
+                                {% csrf_token %}
+                                <button type="submit" class="button secondary button-sm">Withdraw</button>
+                            </form>
+                        {% elif a.status == "WITHDRAWN" and a.booth_tier.event.end_at > now %}
+                            <a href="{% url 'vendors:apply' a.booth_tier.pk %}">Re-apply</a>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% else %}
+<div class="window-card">
+    <div class="window-body empty-state">
+        <h2>No applications yet</h2>
+        <p>Find an event with open booths and apply with a short description of what you sell.</p>
+        <a href="{% url 'vendors:booth_directory' %}" class="button primary-green">Browse open booths</a>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

@@ -271,3 +271,57 @@ class WithdrawTests(ApplicationTestBase):
         self.client.post(reverse("vendors:withdraw", args=[application.pk]))
         response = self.client.get(reverse("events:detail", args=[self.event.slug]))
         self.assertEqual(response.context["booth_tiers"][0].remaining, 1)
+
+
+class ApplicationPageTests(ApplicationTestBase):
+    def make_application(self, **overrides):
+        fields = dict(booth_tier=self.tier, vendor=self.vendor,
+                      product_description="Hand-poured soy candles")
+        fields.update(overrides)
+        return BoothApplication.objects.create(**fields)
+
+    def test_apply_form_shows_tier_and_business_name(self):
+        self.client.force_login(self.vendor)
+        response = self.client.get(self.apply_url)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, self.tier.name)
+        self.assertContains(response, "Kiko Candles")
+
+    def test_blank_business_name_blocks_application(self):
+        self.vendor.profile.business_or_stage_name = ""
+        self.vendor.profile.save()
+        self.client.force_login(self.vendor)
+        response = self.apply()
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Add your business name")
+        self.assertEqual(BoothApplication.objects.count(), 0)
+
+    def test_short_description_shows_error(self):
+        self.client.force_login(self.vendor)
+        response = self.apply("too short")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "at least 10 characters")
+        self.assertEqual(BoothApplication.objects.count(), 0)
+
+    def test_my_applications_lists_only_own_rows(self):
+        other = User.objects.create_user("ven2", password="pw-12345-test", role="VENDOR")
+        self.make_application()
+        self.make_application(vendor=other, product_description="Not mine at all")
+        self.client.force_login(self.vendor)
+        response = self.client.get(self.list_url)
+        self.assertEqual([a.vendor for a in response.context["applications"]], [self.vendor])
+
+    def test_my_applications_empty_state(self):
+        self.client.force_login(self.vendor)
+        self.assertContains(self.client.get(self.list_url), "No applications yet")
+
+    def test_pending_row_has_withdraw_button(self):
+        application = self.make_application()
+        self.client.force_login(self.vendor)
+        self.assertContains(self.client.get(self.list_url),
+                            reverse("vendors:withdraw", args=[application.pk]))
+
+    def test_withdrawn_row_offers_reapply(self):
+        self.make_application(status="WITHDRAWN")
+        self.client.force_login(self.vendor)
+        self.assertContains(self.client.get(self.list_url), self.apply_url)

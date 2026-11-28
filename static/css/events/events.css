@@ -120,6 +120,12 @@
 .status-draft { background: #fef3c7; color: var(--badge-performer); }
 .status-cancelled { background: #fee2e2; color: var(--badge-organizer); }
 
+.status-pending { background: #fef3c7; color: var(--badge-performer); }
+.status-approved { background: #d1fae5; color: var(--badge-vendor); }
+.status-rejected { background: #fee2e2; color: var(--badge-organizer); }
+.status-waitlisted { background: #e0f2fe; color: var(--badge-attendee); }
+.status-withdrawn { background: var(--paper-bg); color: var(--text-muted); }
+
 /* ---- table ---- */
 .scroll-x { overflow-x: auto; }
 .table { width: 100%; border-collapse: collapse; font-size: 14px; }
