@@ -13,7 +13,8 @@ from django.views.decorators.http import require_POST
 from django.db.models import F
 
 from apps.core.decorators import organizer_required
-from apps.vendors.models import BoothTier
+from apps.vendors.constants import VENDOR_ROLE
+from apps.vendors.models import BoothApplication, BoothTier
 from apps.permits.models import EventPermit
 from apps.permits.services import generate_event_permits
 
@@ -112,6 +113,20 @@ def event_detail(request, slug):
         raise Http404
 
     now = timezone.now()
+    booth_tiers = list(
+        BoothTier.objects.filter(event=event)
+        .annotate(approved=Count("applications", filter=Q(applications__status="APPROVED")))
+        .annotate(remaining=F("slots_total") - F("approved"))
+        .prefetch_related("required_permits")
+    )
+    my_statuses = {}
+    if user.is_authenticated and user.role == VENDOR_ROLE:
+        my_statuses = dict(
+            BoothApplication.objects.filter(vendor=user, booth_tier__event=event)
+            .values_list("booth_tier_id", "status")
+        )
+    for tier in booth_tiers:
+        tier.my_status = my_statuses.get(tier.pk)
     going = RSVP.objects.filter(event=event, status=RSVP_GOING).aggregate(t=Sum("party_size"))["t"] or 0
     interested = RSVP.objects.filter(event=event, status=RSVP_INTERESTED).count()
     context = {
@@ -127,10 +142,11 @@ def event_detail(request, slug):
         "is_past": event.end_at < now,
         "is_owner": is_owner,
         "rsvp_choices": RSVP_CHOICES,
-        "booth_tiers": BoothTier.objects.filter(event=event)
-            .annotate(approved=Count("applications", filter=Q(applications__status="APPROVED")))
-            .annotate(remaining=F("slots_total") - F("approved"))
-            .prefetch_related("required_permits"),
+        "booth_tiers": booth_tiers,
+        "can_apply_booth": (
+            user.is_authenticated and user.role == VENDOR_ROLE
+            and event.status == EVENT_PUBLISHED and event.end_at >= now
+        ),
     }
     if is_owner:
         context["permits"] = (

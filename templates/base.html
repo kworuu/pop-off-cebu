@@ -24,6 +24,7 @@
                         <a href="{% url 'events:mine' %}">My events</a>
                         <a href="{% url 'vendors:needs_vendors' %}">Needs vendors</a>
                     {% endif %}
+                    {% if user.role == 'VENDOR' %}<a href="{% url 'vendors:my_applications' %}">My applications</a>{% endif %}
                     <a href="{% url 'profiles:profile' %}">Profile</a>
                     <a href="{% url 'user_settings:settings' %}">Settings</a>
                     <span class="role-badge {{ user.role|lower }}">{{ user.get_role_display }}</span>

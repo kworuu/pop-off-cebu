@@ -325,3 +325,51 @@ class ApplicationPageTests(ApplicationTestBase):
         self.make_application(status="WITHDRAWN")
         self.client.force_login(self.vendor)
         self.assertContains(self.client.get(self.list_url), self.apply_url)
+
+
+class DetailApplyButtonTests(ApplicationTestBase):
+    def setUp(self):
+        super().setUp()
+        self.detail_url = reverse("events:detail", args=[self.event.slug])
+
+    def test_vendor_sees_apply_button(self):
+        self.client.force_login(self.vendor)
+        self.assertContains(self.client.get(self.detail_url), self.apply_url)
+
+    def test_anonymous_attendee_and_organizer_do_not(self):
+        self.assertNotContains(self.client.get(self.detail_url), self.apply_url)
+        for user in (self.attendee, self.organizer):
+            self.client.force_login(user)
+            self.assertNotContains(self.client.get(self.detail_url), self.apply_url)
+
+    def test_applied_tier_shows_status_not_button(self):
+        BoothApplication.objects.create(booth_tier=self.tier, vendor=self.vendor,
+                                        product_description="Hand-poured soy candles")
+        self.client.force_login(self.vendor)
+        response = self.client.get(self.detail_url)
+        self.assertContains(response, "Applied: PENDING")
+        self.assertNotContains(response, self.apply_url)
+
+    def test_withdrawn_tier_offers_reapply(self):
+        BoothApplication.objects.create(booth_tier=self.tier, vendor=self.vendor,
+                                        product_description="Hand-poured soy candles",
+                                        status="WITHDRAWN")
+        self.client.force_login(self.vendor)
+        response = self.client.get(self.detail_url)
+        self.assertContains(response, "Re-apply")
+        self.assertContains(response, self.apply_url)
+
+    def test_ended_event_hides_apply_button(self):
+        past = timezone.now() - timedelta(days=2)
+        old = make_event(self.organizer, self.venue, title="Old", slug="old",
+                         start_at=past, end_at=past + timedelta(hours=3))
+        tier = make_tier(old)
+        self.client.force_login(self.vendor)
+        response = self.client.get(reverse("events:detail", args=[old.slug]))
+        self.assertNotContains(response, reverse("vendors:apply", args=[tier.pk]))
+
+    def test_my_applications_nav_link_is_vendor_only(self):
+        self.client.force_login(self.vendor)
+        self.assertContains(self.client.get(reverse("home:home")), self.list_url)
+        self.client.force_login(self.attendee)
+        self.assertNotContains(self.client.get(reverse("home:home")), self.list_url)
