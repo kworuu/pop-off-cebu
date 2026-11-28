@@ -12,4 +12,5 @@ urlpatterns = [
     path("tiers/<int:pk>/apply/", views.apply_to_tier, name="apply"),
     path("applications/", views.my_applications, name="my_applications"),
     path("applications/<int:pk>/withdraw/", views.withdraw_application, name="withdraw"),
+    path("events/<slug:slug>/applications/", views.event_applications, name="event_applications"),
 ]

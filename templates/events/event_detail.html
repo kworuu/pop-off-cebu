@@ -148,6 +148,7 @@
             <div class="window-header"><span>ORGANIZER</span>{% include "partials/_window_controls.html" %}</div>
             <div class="window-body">
                 <a href="{% url 'events:edit' event.slug %}" class="button full-width">Edit event</a>
+                <a href="{% url 'vendors:event_applications' event.slug %}" class="button secondary full-width">Booth applications</a>
                 <h3 class="side-heading">Permit checklist</h3>
                 {% if permits %}
                     <ul class="permit-list">

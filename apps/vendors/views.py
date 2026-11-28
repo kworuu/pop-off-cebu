@@ -8,7 +8,7 @@ from apps.events.models import Event
 from apps.core.decorators import organizer_required
 from .forms import BoothTierForm
 from .models import BoothTier
-from .selectors import events_needing_vendors, open_booth_tiers
+from .selectors import events_needing_vendors, open_booth_tiers, tiers_with_applications
 from apps.core.decorators import vendor_required   # extend your existing core.decorators import line
 from apps.events.constants import EVENT_PUBLISHED  # extend your existing events.constants import line
 from .constants import (
@@ -126,3 +126,14 @@ def withdraw_application(request, pk):
     else:
         messages.error(request, "This application can't be withdrawn.")
     return redirect("vendors:my_applications")
+
+
+# --------------------------------------------------------- organizer review
+
+@organizer_required
+def event_applications(request, slug):
+    event = get_object_or_404(Event, slug=slug, organizer=request.user)
+    return render(request, "vendors/event_applications.html", {
+        "event": event,
+        "tiers": tiers_with_applications(event),
+    })

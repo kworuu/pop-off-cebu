@@ -413,3 +413,83 @@ class WaitlistedStatusTests(ApplicationTestBase):
         self.client.force_login(self.vendor)
         response = self.client.get(self.list_url)
         self.assertContains(response, "Waitlisted")
+
+
+class EventApplicationsPageTests(ApplicationTestBase):
+    def setUp(self):
+        super().setUp()
+        self.url = reverse("vendors:event_applications", args=[self.event.slug])
+
+    def make_application(self, **overrides):
+        fields = dict(booth_tier=self.tier, vendor=self.vendor,
+                      product_description="Hand-poured soy candles")
+        fields.update(overrides)
+        return BoothApplication.objects.create(**fields)
+
+    def test_owner_sees_applications_with_business_name(self):
+        self.make_application()
+        self.client.force_login(self.organizer)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Kiko Candles")
+        self.assertContains(response, "Hand-poured soy candles")
+
+    def test_other_organizer_gets_404(self):
+        other = User.objects.create_user("org2", password="pw-12345-test", role="ORGANIZER")
+        self.client.force_login(other)
+        self.assertEqual(self.client.get(self.url).status_code, 404)
+
+    def test_vendor_and_attendee_are_redirected(self):
+        for user in (self.vendor, self.attendee):
+            self.client.force_login(user)
+            self.assertEqual(self.client.get(self.url).status_code, 302)
+
+    def test_anonymous_goes_to_login(self):
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("/login/", response.url)
+
+    def test_other_events_applications_are_not_listed(self):
+        other_event = make_event(self.organizer, self.venue, title="Other", slug="other")
+        other_tier = make_tier(other_event, name="Other tier")
+        rival = User.objects.create_user("rival", password="pw-12345-test", role="VENDOR")
+        BoothApplication.objects.create(booth_tier=other_tier, vendor=rival,
+                                        product_description="Not for this event")
+        self.client.force_login(self.organizer)
+        self.assertNotContains(self.client.get(self.url), "Not for this event")
+
+    def test_tier_shows_approved_count(self):
+        self.make_application(status="APPROVED")
+        waitlisted = User.objects.create_user("ven2", password="pw-12345-test", role="VENDOR")
+        self.make_application(vendor=waitlisted, status="WAITLISTED")
+        self.client.force_login(self.organizer)
+        response = self.client.get(self.url)
+        self.assertEqual(response.context["tiers"][0].approved, 1)
+        self.assertContains(response, "Waitlisted")
+
+    def test_withdrawn_application_is_still_listed(self):
+        self.make_application(status="WITHDRAWN")
+        self.client.force_login(self.organizer)
+        self.assertContains(self.client.get(self.url), "Withdrawn")
+
+    def test_empty_states(self):
+        self.client.force_login(self.organizer)
+        self.assertContains(self.client.get(self.url), "No applications for this tier yet")
+        empty = make_event(self.organizer, self.venue, title="Empty", slug="empty")
+        response = self.client.get(reverse("vendors:event_applications", args=[empty.slug]))
+        self.assertContains(response, "No booth tiers yet")
+
+    def test_query_count_does_not_grow_with_applications(self):
+        self.client.force_login(self.organizer)
+        for i in range(3):
+            vendor = User.objects.create_user(f"v{i}", password="pw-12345-test", role="VENDOR")
+            self.make_application(vendor=vendor)
+        with self.assertNumQueries(5):  # session, user, event, tiers, applications
+            self.client.get(self.url)
+
+    def test_event_page_links_to_applications_for_owner_only(self):
+        detail = reverse("events:detail", args=[self.event.slug])
+        self.client.force_login(self.organizer)
+        self.assertContains(self.client.get(detail), self.url)
+        self.client.force_login(self.vendor)
+        self.assertNotContains(self.client.get(detail), self.url)
