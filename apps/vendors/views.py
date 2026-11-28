@@ -119,13 +119,18 @@ def my_applications(request):
 @vendor_required
 @require_POST
 def withdraw_application(request, pk):
-    application = get_object_or_404(BoothApplication, pk=pk, vendor=request.user)
-    if application.status in ACTIVE_APPLICATION_STATUSES:
-        application.status = APPLICATION_WITHDRAWN
-        application.save(update_fields=["status"])
-        messages.success(request, "Application withdrawn.")
-    else:
-        messages.error(request, "This application can't be withdrawn.")
+    get_object_or_404(BoothApplication, pk=pk, vendor=request.user)
+    with transaction.atomic():
+        # Same row lock the organizer's review takes, so a withdrawal and a review
+        # that land together are applied one after the other instead of overwriting
+        # each other (effective on PostgreSQL; SQLite ignores the lock).
+        application = BoothApplication.objects.select_for_update().get(pk=pk)
+        if application.status in ACTIVE_APPLICATION_STATUSES:
+            application.status = APPLICATION_WITHDRAWN
+            application.save(update_fields=["status"])
+            messages.success(request, "Application withdrawn.")
+        else:
+            messages.error(request, "This application can't be withdrawn.")
     return redirect("vendors:my_applications")
 
 
