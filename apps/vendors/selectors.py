@@ -1,4 +1,4 @@
-from django.db.models import Subquery
+from django.db.models import Count, Prefetch, Q, Subquery
 from django.utils import timezone
 
 from apps.events.constants import EVENT_PUBLISHED
@@ -29,4 +29,15 @@ def events_needing_vendors(organizer):
         .filter(organizer=organizer, id__in=Subquery(event_ids))
         .select_related("venue__district")
         .order_by("start_at")
+    )
+
+
+def tiers_with_applications(event):
+    """Booth tiers of one event, each with its applications (oldest first) and an
+    `approved` count. Two queries in total, however many applications exist."""
+    applications = BoothApplication.objects.select_related("vendor__profile").order_by("applied_at")
+    return (
+        BoothTier.objects.filter(event=event)
+        .annotate(approved=Count("applications", filter=Q(applications__status="APPROVED")))
+        .prefetch_related(Prefetch("applications", queryset=applications))
     )

@@ -1,5 +1,6 @@
 from django import forms
 from apps.permits.models import PermitType
+from .constants import APPLICATION_APPROVED, APPLICATION_REJECTED, APPLICATION_WAITLISTED
 from .models import BoothApplication, BoothTier
 
 
@@ -47,3 +48,17 @@ class BoothApplicationForm(forms.ModelForm):
         if len(value) < 10:
             raise forms.ValidationError("Describe your products in at least 10 characters.")
         return value
+
+
+class ApplicationReviewForm(forms.Form):
+    """An organizer's decision on one application. WITHDRAWN is deliberately not
+    a choice: only the vendor can withdraw."""
+
+    DECISIONS = [
+        (APPLICATION_APPROVED, "Approve"),
+        (APPLICATION_WAITLISTED, "Waitlist"),
+        (APPLICATION_REJECTED, "Reject"),
+    ]
+
+    decision = forms.ChoiceField(choices=DECISIONS)
+    organizer_notes = forms.CharField(required=False, max_length=500)

@@ -140,3 +140,18 @@
     .detail-side { position: static; }
     .page-title { font-size: 26px; }
 }
+
+/* ---- organizer review ---- */
+.review-form { min-width: 230px; }
+.review-form input[type="text"] {
+    width: 100%;
+    padding: 6px 8px;
+    margin-bottom: 8px;
+    background: #fff;
+    border: 2px solid var(--border-ink);
+    border-radius: 4px;
+    font-family: var(--font-heading);
+    font-size: 13px;
+}
+.review-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.button:disabled { opacity: 0.45; cursor: not-allowed; box-shadow: none; transform: none; }

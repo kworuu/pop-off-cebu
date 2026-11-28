@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Booth applications | Pop-off Cebu{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{% static 'css/events/events.css' %}">{% endblock %}
+
+{% block content %}
+<div class="page-head">
+    <h1 class="page-title">Booth applications</h1>
+    <a href="{% url 'events:detail' event.slug %}" class="button secondary">Back to {{ event.title }}</a>
+</div>
+
+{% for tier in tiers %}
+<div class="window-card">
+    <div class="window-header"><span>{{ tier.name|upper }}</span>{% include "partials/_window_controls.html" %}</div>
+    <div class="window-body scroll-x">
+        <p class="meta-line"><strong>{{ tier.approved }}</strong> approved of {{ tier.slots_total }} slot{{ tier.slots_total|pluralize }} / PHP {{ tier.fee }}</p>
+        {% with applications=tier.applications.all %}
+        {% if applications %}
+        <table class="table">
+            <thead>
+                <tr><th>Vendor</th><th>Products</th><th>Portfolio</th><th>Applied</th><th>Status</th><th>Review</th></tr>
+            </thead>
+            <tbody>
+                {% for a in applications %}
+                <tr>
+                    <td>
+                        <strong>{{ a.vendor.profile.business_or_stage_name|default:"(no business name)" }}</strong><br>
+                        <span class="help">{{ a.vendor.username }}</span>
+                    </td>
+                    <td>{{ a.product_description|linebreaksbr }}</td>
+                    <td>{% if a.vendor.profile.portfolio_url %}<a href="{{ a.vendor.profile.portfolio_url }}" target="_blank" rel="noopener noreferrer">Portfolio</a>{% else %}<span class="muted">None</span>{% endif %}</td>
+                    <td>{{ a.applied_at|date:"M j, Y g:i A" }}</td>
+                    <td><span class="status-badge status-{{ a.status|lower }}">{{ a.get_status_display }}</span></td>
+                    <td>
+                        {% if a.status == "WITHDRAWN" %}
+                            <span class="muted">Withdrawn by vendor</span>
+                        {% else %}
+                            <form method="post" action="{% url 'vendors:review' a.pk %}" class="review-form">
+                                {% csrf_token %}
+                                <input type="text" name="organizer_notes" value="{{ a.organizer_notes }}" maxlength="500" placeholder="Note to vendor (optional)" aria-label="Note to vendor">
+                                <div class="review-actions">
+                                    <button type="submit" name="decision" value="APPROVED" class="button primary-green button-sm"{% if a.status == "APPROVED" %} disabled{% endif %}>Approve</button>
+                                    <button type="submit" name="decision" value="WAITLISTED" class="button button-sm"{% if a.status == "WAITLISTED" %} disabled{% endif %}>Waitlist</button>
+                                    <button type="submit" name="decision" value="REJECTED" class="button secondary button-sm"{% if a.status == "REJECTED" %} disabled{% endif %}>Reject</button>
+                                </div>
+                            </form>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+            <p class="muted">No applications for this tier yet.</p>
+        {% endif %}
+        {% endwith %}
+    </div>
+</div>
+{% empty %}
+<div class="window-card">
+    <div class="window-body empty-state">
+        <h2>No booth tiers yet</h2>
+        <p>Add a booth tier to your event so vendors can apply.</p>
+        <a href="{% url 'vendors:tier_create' event.slug %}" class="button primary-green">Add booth tier</a>
+    </div>
+</div>
+{% endfor %}
+{% endblock %}
