@@ -1,6 +1,6 @@
 from django import forms
 from apps.permits.models import PermitType
-from .models import BoothTier
+from .models import BoothApplication, BoothTier
 
 
 class BoothTierForm(forms.ModelForm):
@@ -28,3 +28,22 @@ class BoothTierForm(forms.ModelForm):
         if cleaned.get("slots_total") is not None and cleaned["slots_total"] < 1:
             self.add_error("slots_total", "Offer at least one slot.")
         return cleaned
+
+class BoothApplicationForm(forms.ModelForm):
+    """Vendors only describe their products. Business name and portfolio link
+    are read from the vendor's Profile, never retyped per application."""
+
+    class Meta:
+        model = BoothApplication
+        fields = ("product_description",)
+        labels = {"product_description": "What will you sell?"}
+        help_texts = {
+            "product_description": "Menu or product range. Your business name and portfolio link come from your profile.",
+        }
+        widgets = {"product_description": forms.Textarea(attrs={"rows": 5})}
+
+    def clean_product_description(self):
+        value = self.cleaned_data["product_description"].strip()
+        if len(value) < 10:
+            raise forms.ValidationError("Describe your products in at least 10 characters.")
+        return value

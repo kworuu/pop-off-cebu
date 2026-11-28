@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Apply for a booth | Pop-off Cebu{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{% static 'css/events/events.css' %}">{% endblock %}
+
+{% block content %}
+<div class="window-card form-window wide">
+    <div class="window-header"><span>BOOTH_APPLICATION.EXE</span>{% include "partials/_window_controls.html" %}</div>
+    <div class="window-body">
+        <h2>Apply for {{ tier.name }}</h2>
+        <p class="form-subtitle">{{ event.title }} / {{ event.venue.name }}, {{ event.venue.district.name }}</p>
+
+        <p class="meta-line">
+            {{ tier.get_booth_category_display }} / {{ tier.max_width_m }}×{{ tier.max_depth_m }} m /
+            {% if tier.power_watts %}{{ tier.power_watts }} W{% else %}no power{% endif %} / PHP {{ tier.fee }}
+        </p>
+        {% if tier.guidelines %}<p class="description">{{ tier.guidelines|linebreaksbr }}</p>{% endif %}
+
+        {% if profile_incomplete %}
+            <div class="notice">
+                Add your business name before applying. Organizers see it on every application.
+                <a href="{% url 'user_settings:settings' %}">Open Settings</a>
+            </div>
+        {% else %}
+            <p class="meta-line">Applying as <strong>{{ user.profile.business_or_stage_name }}</strong>. Change this in <a href="{% url 'user_settings:settings' %}">Settings</a>.</p>
+        {% endif %}
+
+        <form method="post" class="event-form" novalidate>
+            {% csrf_token %}
+            {% if form.non_field_errors %}<div class="notice">{{ form.non_field_errors }}</div>{% endif %}
+            {% include "events/_field.html" with field=form.product_description %}
+            <div class="form-actions">
+                <button type="submit" class="button primary-green"{% if profile_incomplete %} disabled{% endif %}>Submit application</button>
+                <a href="{% url 'events:detail' event.slug %}" class="button secondary">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

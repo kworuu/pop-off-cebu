@@ -9,4 +9,7 @@ urlpatterns = [
     path("tiers/<int:pk>/delete/", views.tier_delete, name="tier_delete"),
     path("booths/", views.booth_directory, name="booth_directory"),
     path("needs-vendors/", views.needs_vendors, name="needs_vendors"),
+    path("tiers/<int:pk>/apply/", views.apply_to_tier, name="apply"),
+    path("applications/", views.my_applications, name="my_applications"),
+    path("applications/<int:pk>/withdraw/", views.withdraw_application, name="withdraw"),
 ]

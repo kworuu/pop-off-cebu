@@ -60,6 +60,14 @@
                         <strong>{{ t.name }}</strong>
                         <span class="help">{{ t.get_booth_category_display }} · {{ t.max_width_m }}×{{ t.max_depth_m }} m · {% if t.power_watts %}{{ t.power_watts }} W{% else %}no power{% endif %} · PHP {{ t.fee }}</span>
                         <span class="help">{{ t.remaining }} of {{ t.slots_total }} slots left</span>
+                        {% if can_apply_booth %}
+                            {% if t.my_status and t.my_status != "WITHDRAWN" %}
+                                <span class="status-badge status-{{ t.my_status|lower }}">Applied: {{ t.my_status }}</span>
+                                <a href="{% url 'vendors:my_applications' %}">View</a>
+                            {% else %}
+                                <a href="{% url 'vendors:apply' t.pk %}" class="button primary-green button-sm">{% if t.my_status %}Re-apply{% else %}Apply{% endif %}</a>
+                            {% endif %}
+                        {% endif %}
                         {% if is_owner %}
                             <a href="{% url 'vendors:tier_edit' t.pk %}">Edit</a>
                             <form method="post" action="{% url 'vendors:tier_delete' t.pk %}" class="nav-logout-form">{% csrf_token %}<button type="submit" class="button secondary button-sm">Delete</button></form>
