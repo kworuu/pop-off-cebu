@@ -56,6 +56,7 @@ class BoothApplication(models.Model):
     class Status(models.TextChoices):
         PENDING = "PENDING", "Pending"
         APPROVED = "APPROVED", "Approved"
+        WAITLISTED = "WAITLISTED", "Waitlisted"
         REJECTED = "REJECTED", "Rejected"
         WITHDRAWN = "WITHDRAWN", "Withdrawn"
 

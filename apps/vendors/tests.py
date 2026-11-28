@@ -373,3 +373,43 @@ class DetailApplyButtonTests(ApplicationTestBase):
         self.assertContains(self.client.get(reverse("home:home")), self.list_url)
         self.client.force_login(self.attendee)
         self.assertNotContains(self.client.get(reverse("home:home")), self.list_url)
+
+
+class WaitlistedStatusTests(ApplicationTestBase):
+    def make_waitlisted(self):
+        return BoothApplication.objects.create(
+            booth_tier=self.tier, vendor=self.vendor,
+            product_description="Hand-poured soy candles", status="WAITLISTED",
+        )
+
+    def test_waitlisted_is_a_valid_status(self):
+        application = BoothApplication(
+            booth_tier=self.tier, vendor=self.vendor,
+            product_description="Hand-poured soy candles", status="WAITLISTED",
+        )
+        application.full_clean()  # raises ValidationError if the choice is missing
+
+    def test_waitlisted_application_can_be_withdrawn(self):
+        application = self.make_waitlisted()
+        self.client.force_login(self.vendor)
+        self.client.post(reverse("vendors:withdraw", args=[application.pk]))
+        application.refresh_from_db()
+        self.assertEqual(application.status, "WITHDRAWN")
+
+    def test_waitlisted_application_blocks_a_duplicate_apply(self):
+        self.make_waitlisted()
+        self.client.force_login(self.vendor)
+        response = self.apply("A different description here")
+        self.assertRedirects(response, self.list_url, fetch_redirect_response=False)
+        self.assertEqual(BoothApplication.objects.count(), 1)
+
+    def test_waitlisted_does_not_use_a_slot(self):
+        self.make_waitlisted()
+        response = self.client.get(reverse("events:detail", args=[self.event.slug]))
+        self.assertEqual(response.context["booth_tiers"][0].remaining, 1)
+
+    def test_waitlisted_shows_on_my_applications(self):
+        self.make_waitlisted()
+        self.client.force_login(self.vendor)
+        response = self.client.get(self.list_url)
+        self.assertContains(response, "Waitlisted")
