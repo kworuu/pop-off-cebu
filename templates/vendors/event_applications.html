@@ -18,7 +18,7 @@
         {% if applications %}
         <table class="table">
             <thead>
-                <tr><th>Vendor</th><th>Products</th><th>Portfolio</th><th>Applied</th><th>Status</th></tr>
+                <tr><th>Vendor</th><th>Products</th><th>Portfolio</th><th>Applied</th><th>Status</th><th>Review</th></tr>
             </thead>
             <tbody>
                 {% for a in applications %}
@@ -31,6 +31,21 @@
                     <td>{% if a.vendor.profile.portfolio_url %}<a href="{{ a.vendor.profile.portfolio_url }}" target="_blank" rel="noopener noreferrer">Portfolio</a>{% else %}<span class="muted">None</span>{% endif %}</td>
                     <td>{{ a.applied_at|date:"M j, Y g:i A" }}</td>
                     <td><span class="status-badge status-{{ a.status|lower }}">{{ a.get_status_display }}</span></td>
+                    <td>
+                        {% if a.status == "WITHDRAWN" %}
+                            <span class="muted">Withdrawn by vendor</span>
+                        {% else %}
+                            <form method="post" action="{% url 'vendors:review' a.pk %}" class="review-form">
+                                {% csrf_token %}
+                                <input type="text" name="organizer_notes" value="{{ a.organizer_notes }}" maxlength="500" placeholder="Note to vendor (optional)" aria-label="Note to vendor">
+                                <div class="review-actions">
+                                    <button type="submit" name="decision" value="APPROVED" class="button primary-green button-sm"{% if a.status == "APPROVED" %} disabled{% endif %}>Approve</button>
+                                    <button type="submit" name="decision" value="WAITLISTED" class="button button-sm"{% if a.status == "WAITLISTED" %} disabled{% endif %}>Waitlist</button>
+                                    <button type="submit" name="decision" value="REJECTED" class="button secondary button-sm"{% if a.status == "REJECTED" %} disabled{% endif %}>Reject</button>
+                                </div>
+                            </form>
+                        {% endif %}
+                    </td>
                 </tr>
                 {% endfor %}
             </tbody>

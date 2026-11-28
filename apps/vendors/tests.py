@@ -8,6 +8,7 @@ from apps.events.tests import EventTestBase, make_event
 from .models import BoothApplication, BoothTier
 from .forms import BoothApplicationForm
 from .selectors import events_needing_vendors, open_booth_tiers
+from .forms import ApplicationReviewForm, BoothApplicationForm
 
 User = get_user_model()
 
@@ -493,3 +494,158 @@ class EventApplicationsPageTests(ApplicationTestBase):
         self.assertContains(self.client.get(detail), self.url)
         self.client.force_login(self.vendor)
         self.assertNotContains(self.client.get(detail), self.url)
+
+
+class ApplicationReviewFormTests(SimpleTestCase):
+    def test_valid_decisions(self):
+        for decision in ("APPROVED", "WAITLISTED", "REJECTED"):
+            self.assertTrue(ApplicationReviewForm({"decision": decision}).is_valid())
+
+    def test_withdrawn_and_unknown_decisions_are_invalid(self):
+        for decision in ("WITHDRAWN", "PENDING", "NOPE", ""):
+            self.assertFalse(ApplicationReviewForm({"decision": decision}).is_valid())
+
+    def test_notes_are_optional_and_stripped(self):
+        form = ApplicationReviewForm({"decision": "APPROVED", "organizer_notes": "  Bring your own table  "})
+        self.assertTrue(form.is_valid())
+        self.assertEqual(form.cleaned_data["organizer_notes"], "Bring your own table")
+
+
+class ReviewApplicationTests(ApplicationTestBase):
+    def setUp(self):
+        super().setUp()
+        self.application = BoothApplication.objects.create(
+            booth_tier=self.tier, vendor=self.vendor,
+            product_description="Hand-poured soy candles",
+        )
+        self.review_url = reverse("vendors:review", args=[self.application.pk])
+        self.page_url = reverse("vendors:event_applications", args=[self.event.slug])
+
+    def rival(self, name="rival", **overrides):
+        vendor = User.objects.create_user(name, password="pw-12345-test", role="VENDOR")
+        fields = dict(booth_tier=self.tier, vendor=vendor, product_description="Rival product range")
+        fields.update(overrides)
+        return BoothApplication.objects.create(**fields)
+
+    def review(self, decision, notes="", url=None):
+        return self.client.post(url or self.review_url,
+                                {"decision": decision, "organizer_notes": notes})
+
+    def refresh(self):
+        self.application.refresh_from_db()
+        return self.application
+
+    def test_approve_sets_status_notes_and_reviewed_at(self):
+        self.client.force_login(self.organizer)
+        response = self.review("APPROVED", "Bring your own table")
+        self.assertRedirects(response, self.page_url, fetch_redirect_response=False)
+        application = self.refresh()
+        self.assertEqual(application.status, "APPROVED")
+        self.assertEqual(application.organizer_notes, "Bring your own table")
+        self.assertIsNotNone(application.reviewed_at)
+
+    def test_waitlist_and_reject(self):
+        self.client.force_login(self.organizer)
+        self.review("WAITLISTED")
+        self.assertEqual(self.refresh().status, "WAITLISTED")
+        self.review("REJECTED", "Not a fit this time")
+        self.assertEqual(self.refresh().status, "REJECTED")
+
+    def test_vendor_sees_the_organizers_note(self):
+        self.client.force_login(self.organizer)
+        self.review("REJECTED", "Not a fit this time")
+        self.client.force_login(self.vendor)
+        response = self.client.get(self.list_url)
+        self.assertContains(response, "Not a fit this time")
+        self.assertContains(response, "Rejected")
+
+    def test_approve_beyond_capacity_is_refused(self):
+        self.rival(status="APPROVED")  # tier has 1 slot and it is taken
+        self.client.force_login(self.organizer)
+        response = self.review("APPROVED")
+        self.assertEqual(self.refresh().status, "PENDING")
+        self.assertEqual(response.status_code, 302)
+        page = self.client.get(self.page_url)
+        self.assertContains(page, "slot(s) for Dry goods are taken")
+
+    def test_waitlist_is_allowed_when_full(self):
+        self.rival(status="APPROVED")
+        self.client.force_login(self.organizer)
+        self.review("WAITLISTED")
+        self.assertEqual(self.refresh().status, "WAITLISTED")
+
+    def test_reapproving_the_same_application_does_not_count_itself(self):
+        self.application.status = "APPROVED"
+        self.application.save()
+        self.client.force_login(self.organizer)
+        self.review("APPROVED", "Updated note")
+        application = self.refresh()
+        self.assertEqual(application.status, "APPROVED")
+        self.assertEqual(application.organizer_notes, "Updated note")
+
+    def test_rejecting_an_approved_vendor_frees_the_slot(self):
+        self.application.status = "APPROVED"
+        self.application.save()
+        other = self.rival(status="WAITLISTED")
+        self.client.force_login(self.organizer)
+        self.review("REJECTED")
+        self.review("APPROVED", url=reverse("vendors:review", args=[other.pk]))
+        other.refresh_from_db()
+        self.assertEqual(other.status, "APPROVED")
+
+    def test_waitlisted_can_be_promoted_when_a_slot_is_free(self):
+        self.application.status = "WAITLISTED"
+        self.application.save()
+        self.client.force_login(self.organizer)
+        self.review("APPROVED")
+        self.assertEqual(self.refresh().status, "APPROVED")
+
+    def test_withdrawn_application_cannot_be_reviewed(self):
+        self.application.status = "WITHDRAWN"
+        self.application.save()
+        self.client.force_login(self.organizer)
+        self.review("APPROVED")
+        self.assertEqual(self.refresh().status, "WITHDRAWN")
+
+    def test_invalid_decision_changes_nothing(self):
+        self.client.force_login(self.organizer)
+        self.review("WITHDRAWN")
+        self.assertEqual(self.refresh().status, "PENDING")
+        self.assertIsNone(self.refresh().reviewed_at)
+
+    def test_cancelled_event_blocks_review(self):
+        self.event.status = "CANCELLED"
+        self.event.save()
+        self.client.force_login(self.organizer)
+        self.review("APPROVED")
+        self.assertEqual(self.refresh().status, "PENDING")
+
+    def test_other_organizer_gets_404(self):
+        other = User.objects.create_user("org2", password="pw-12345-test", role="ORGANIZER")
+        self.client.force_login(other)
+        self.assertEqual(self.review("APPROVED").status_code, 404)
+        self.assertEqual(self.refresh().status, "PENDING")
+
+    def test_vendor_and_attendee_cannot_review(self):
+        for user in (self.vendor, self.attendee):
+            self.client.force_login(user)
+            self.assertEqual(self.review("APPROVED").status_code, 302)
+        self.assertEqual(self.refresh().status, "PENDING")
+
+    def test_anonymous_goes_to_login(self):
+        response = self.review("APPROVED")
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("/login/", response.url)
+        self.assertEqual(self.refresh().status, "PENDING")
+
+    def test_review_requires_post(self):
+        self.client.force_login(self.organizer)
+        self.assertEqual(self.client.get(self.review_url).status_code, 405)
+
+    def test_page_shows_review_buttons_except_for_withdrawn(self):
+        withdrawn = self.rival(status="WITHDRAWN")
+        self.client.force_login(self.organizer)
+        response = self.client.get(self.page_url)
+        self.assertContains(response, self.review_url)
+        self.assertNotContains(response, reverse("vendors:review", args=[withdrawn.pk]))
+        self.assertContains(response, "Withdrawn by vendor")

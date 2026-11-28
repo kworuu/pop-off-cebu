@@ -2,6 +2,7 @@ from django.contrib import messages
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 from django.utils import timezone
+from django.db import transaction
 
 from apps.events.constants import EVENT_CANCELLED
 from apps.events.models import Event
@@ -12,9 +13,9 @@ from .selectors import events_needing_vendors, open_booth_tiers, tiers_with_appl
 from apps.core.decorators import vendor_required   # extend your existing core.decorators import line
 from apps.events.constants import EVENT_PUBLISHED  # extend your existing events.constants import line
 from .constants import (
-    ACTIVE_APPLICATION_STATUSES, APPLICATION_PENDING, APPLICATION_WITHDRAWN,
+    ACTIVE_APPLICATION_STATUSES, APPLICATION_APPROVED, APPLICATION_PENDING, APPLICATION_WITHDRAWN,
 )
-from .forms import BoothApplicationForm  # extend your existing .forms import line
+from .forms import ApplicationReviewForm, BoothApplicationForm, BoothTierForm  # extend your existing .forms import line
 from .models import BoothApplication     # extend your existing .models import line
 
 @organizer_required
@@ -137,3 +138,56 @@ def event_applications(request, slug):
         "event": event,
         "tiers": tiers_with_applications(event),
     })
+
+
+@organizer_required
+@require_POST
+def review_application(request, pk):
+    application = get_object_or_404(
+        BoothApplication.objects.select_related("booth_tier__event"),
+        pk=pk, booth_tier__event__organizer=request.user,
+    )
+    event = application.booth_tier.event
+    back = redirect("vendors:event_applications", slug=event.slug)
+
+    if event.status == EVENT_CANCELLED:
+        messages.error(request, "This event is cancelled, so applications can't be reviewed.")
+        return back
+    form = ApplicationReviewForm(request.POST)
+    if not form.is_valid():
+        messages.error(request, "Choose approve, waitlist or reject.")
+        return back
+    decision = form.cleaned_data["decision"]
+
+    with transaction.atomic():
+        # Lock the tier row so two simultaneous approvals can't both take the last
+        # slot (effective on PostgreSQL; SQLite ignores the lock), then re-read the
+        # application so the checks below use fresh data.
+        tier = BoothTier.objects.select_for_update().get(pk=application.booth_tier_id)
+        application = BoothApplication.objects.select_for_update().get(pk=application.pk)
+
+        if application.status == APPLICATION_WITHDRAWN:
+            messages.error(request, "The vendor withdrew this application, so it can't be reviewed.")
+            return back
+        if decision == APPLICATION_APPROVED:
+            taken = (
+                BoothApplication.objects
+                .filter(booth_tier=tier, status=APPLICATION_APPROVED)
+                .exclude(pk=application.pk)
+                .count()
+            )
+            if taken >= tier.slots_total:
+                messages.error(
+                    request,
+                    f"All {tier.slots_total} slot(s) for {tier.name} are taken. "
+                    "Waitlist this vendor, or reject or waitlist an approved one first.",
+                )
+                return back
+
+        application.status = decision
+        application.organizer_notes = form.cleaned_data["organizer_notes"]
+        application.reviewed_at = timezone.now()
+        application.save(update_fields=["status", "organizer_notes", "reviewed_at"])
+
+    messages.success(request, f"Application marked {application.get_status_display().lower()}.")
+    return back

@@ -13,4 +13,5 @@ urlpatterns = [
     path("applications/", views.my_applications, name="my_applications"),
     path("applications/<int:pk>/withdraw/", views.withdraw_application, name="withdraw"),
     path("events/<slug:slug>/applications/", views.event_applications, name="event_applications"),
+        path("applications/<int:pk>/review/", views.review_application, name="review"),
 ]
